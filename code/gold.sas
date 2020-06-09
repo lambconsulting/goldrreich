@@ -115,7 +115,7 @@ data reg_all; set _null_; run;
 %macro penorm (ds,iv,bacteria);
 
 /*%let ds_vars = strep staph past pseudo ;*/
-%let contvars = &cont_vars.;
+%let contvars = &cont_vars_all.;
 /*%let ds_count=%sysfunc(countw(&ds_vars.));*/
 %let count=%sysfunc(countw(&contvars.));
 /*%do j = 1 %to &ds_count.; * &ds_count.;*/
@@ -127,21 +127,34 @@ where bacteria ="&bacteria."; run;
 proc reg data=ds;
   model %scan(&contvars,&i.) = &iv. ;
   output out=%scan(&contvars,&i.)res rstudent=%scan(&contvars,&i.)r  ;
-  ods output ParameterEstimates=%scan(&contvars,&i.)pe;
+  ods output ParameterEstimates=%scan(&contvars,&i.)pe FitStatistics = fs;
 run;
 quit;
 %if %sysfunc(exist(%scan(&contvars,&i.)pe)) %then %do;
-data %scan(&contvars,&i.)pe;
+
+data r_val (keep=r2 cvalue2); set fs (keep=label2 cvalue2);
+where label2 = "R-Square";
+drop label2;
+r2 = input(cvalue2,10.4);
+run;
+
+
+data pe0;
 length var bacteria $50;
 set %scan(&contvars,&i.)pe;
 var = "%scan(&contvars,&i.)";
 bacteria ="&bacteria.";
 where variable not in ("Intercept");
 run;
+
+data pe_r; merge pe0 r_val; run;
+
+
 data pe;
-length var bacteria $50;
-set pe %scan(&contvars,&i.)pe;
+set pe pe_r;
 run;
+
+
 * Examine residuals for normality ;
 proc univariate data=%scan(&contvars,&i.)res plots plotsize=30 normal;
   var %scan(&contvars,&i.)r;
@@ -162,10 +175,12 @@ run;
 proc datasets nolist nodetails; delete ds ; run;
 
 %mend;
-data norm; set _null_; data pe; set _null_; data pe_norm; set _null_; data npar; set _null_; run;
+data norm; set _null_; data pe; set _null_; data pe_norm; set _null_; data npar; set _null_; 
+data pe_r; set _null_; run;
 
 
 %penorm(gold,yr,staph);
 %penorm(gold,yr,strep);
 %penorm(gold,yr,pseudo);
 %penorm(gold,yr,past);
+%penorm(gold,yr,total);
